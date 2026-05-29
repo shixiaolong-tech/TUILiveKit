@@ -173,7 +173,6 @@
 
 <script lang="ts" setup>
 import { computed, defineProps, ref, onMounted, onUnmounted } from 'vue';
-import TUIRoomEngine, { TUISeatMode } from '@tencentcloud/tuiroom-engine-js';
 import {
   IconArrowStrokeBack,
   TUIDialog,
@@ -187,6 +186,7 @@ import {
   IconCopy,
 } from '@tencentcloud/uikit-base-component-vue3';
 import {
+  TUISeatMode,
   LiveScenePanel,
   LiveAudienceList,
   BarrageList,
@@ -205,6 +205,7 @@ import {
   LiveListEvent,
   LiveEndedReason,
   LiveListEventInfo,
+  TUIAudioQuality,
 } from 'tuikit-atomicx-vue3';
 import CoGuestButton from './component/CoGuestButton.vue';
 import CoHostButton from './component/CoHostButton.vue';
@@ -218,6 +219,15 @@ import LivePusherNotification from './component/LivePusherNotification.vue';
 import { copyToClipboard, isSvgCoverUrl } from './utils/utils';
 import { errorHandler } from './utils/errorHandler';
 import { initRoomEngineLanguage } from '../utils/utils';
+
+import { TRTCCloud } from '@tencentcloud/tuiroom-engine-js';
+
+TRTCCloud.callExperimentalAPI(JSON.stringify({
+  api: 'setAssetsPath',
+  params: {
+    assetsPath: 'https://xxxxxx/assets/',    // 将 node_modules/trtc-sdk-v5/assets 目录发布到您自己的 web 服务器
+  }
+}));
 
 const { t } = useUIKit();
 const props = defineProps<{
@@ -364,11 +374,22 @@ const handleStartLive = async () => {
       liveName: liveParams.value.liveName,
       coverUrl: liveParams.value.coverUrl,
     });
-    joinLive({
+    await joinLive({
       liveId: liveParams.value.liveId,
     });
     loading.value = false;
-    openLocalMicrophone();
+
+    if (roomEngine.instance) {
+      // 注意：
+      // TUIAudioQuality.kAudioProfileSpeech：开启 AI 远场降噪
+      // TUIAudioQuality.kAudioProfileDefault: 开启 AI 基础降噪
+      // TUIAudioQuality.kAudioProfileMusic: 关闭 AI 降噪
+      roomEngine.instance.updateAudioQuality({ quality: TUIAudioQuality.kAudioProfileSpeech });
+    } else {
+      console.warn('[LivePusherView]trtcCloud is not available');
+    }
+
+    await openLocalMicrophone();
   } catch (error: any) {
     loading.value = false;
     if (typeof error.message === 'string'
@@ -376,6 +397,16 @@ const handleStartLive = async () => {
       await joinLive({
         liveId: liveParams.value.liveId,
       });
+
+      if (roomEngine.instance) {
+        // 注意：
+        // TUIAudioQuality.kAudioProfileSpeech：开启 AI 远场降噪
+        // TUIAudioQuality.kAudioProfileDefault: 开启 AI 基础降噪
+        // TUIAudioQuality.kAudioProfileMusic: 关闭 AI 降噪
+        roomEngine.instance.updateAudioQuality({ quality: TUIAudioQuality.kAudioProfileSpeech });
+      } else {
+        console.warn('[LivePusherView]trtcCloud is not available');
+      }
       await openLocalMicrophone();
       return;
     }
